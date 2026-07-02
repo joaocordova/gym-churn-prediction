@@ -1,46 +1,36 @@
-<div align="center">
+<img src="assets/img/banner.png" alt="Member churn prediction — production ML system" width="100%">
 
-<img src="assets/img/banner.png" alt="Gym Churn Prediction — end-to-end ML system" width="100%">
+# gym-churn-prediction
 
 [![CI](https://github.com/joaocordova/gym-churn-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/joaocordova/gym-churn-prediction/actions/workflows/ci.yml)
-![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
-![LightGBM](https://img.shields.io/badge/LightGBM-calibrated-2a78d6)
-![SHAP](https://img.shields.io/badge/SHAP-explainable-e34948)
-![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-**[📸 Dashboard](#-the-dashboard) · [🏗 Architecture](#2-system-architecture) · [📊 Performance](#6-model-performance) · [💰 Business impact](#7-business-impact) · [🚀 Quickstart](#8-quickstart)**
+Production-style ML system that scores every active gym member's probability of cancelling in the next 30 days, explains each score with SHAP, and converts the scores into a retention campaign with a profit-optimal contact threshold. One pipeline covers data generation, validation, feature engineering, training, evaluation, and serving; a Streamlit app is the operator surface.
 
-</div>
+**Results on the out-of-time test snapshot** (May 2026, 8,231 members the model never saw): ROC-AUC 0.882, PR-AUC 0.484 against a 6.0% base rate, 6.2x lift in the top decile. Targeting the top 10% captures 62% of next-month churners, worth roughly $17,200/month over untargeted outreach on this portfolio (~$206K annualized).
 
----
+Companion project: [gym-winback-prediction](https://github.com/joaocordova/gym-winback-prediction) — once a member has cancelled, which ones can be won back, and with which offer.
 
-> **TL;DR (out-of-time test):** ROC-AUC **0.882** · PR-AUC **0.484** (8× the 6% base rate) · **6.2× lift** in the top decile. Contacting the top 10% riskiest members captures **62% of next-month churners** — worth **≈ $17,200/month (~$206K/yr) more profit than untargeted outreach** on an 8,000-member portfolio.
+## Dashboard
 
-## 📸 The dashboard
+Per-member scoring with the SHAP explanation for that exact member, and the outreach recommendation derived from campaign economics rather than a fixed 0.5 cutoff:
 
-Real-time scoring with a per-member SHAP explanation — enter a member's behaviour, get the calibrated risk, the *why*, and the outreach decision:
+<img src="assets/img/app_score.png" alt="Score view: churn gauge, risk tier, SHAP explanation" width="100%">
 
-<img src="assets/img/app_score.png" alt="Score a member — churn gauge, risk tier and SHAP explanation" width="100%">
+Portfolio view — risk-tier distribution, ranked outreach list, expected campaign profit:
 
-Portfolio view — risk-tier mix, ranked outreach list and expected campaign profit:
-
-<img src="assets/img/app_portfolio.png" alt="Portfolio radar — risk tiers and ranked outreach list" width="100%">
+<img src="assets/img/app_portfolio.png" alt="Portfolio view: risk tiers and ranked outreach list" width="100%">
 
 ```bash
-streamlit run app.py   # → http://localhost:8501
+streamlit run app.py   # http://localhost:8501
 ```
 
-## 1. Business problem
+## Problem
 
-Gyms lose 30–50% of members per year. Retention outreach (a call, a free PT session, a discount) works — but only if it lands on members who were actually about to leave, *before* they leave. This system answers three questions every month:
+Gyms lose 30–50% of members per year. Retention outreach (a call, a free session, a discount) works, but only when it reaches members who were actually about to leave. The system answers three questions monthly: who is likely to cancel in the next 30 days; which behaviours drive each member's risk; and for which members the expected saved revenue exceeds the cost of contact.
 
-1. **Who** is likely to cancel in the next 30 days?
-2. **Why** — which behaviours are driving each member's risk?
-3. **Is outreach worth it** — for which members does expected saved revenue exceed campaign cost?
-
-## 2. System architecture
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -49,7 +39,7 @@ flowchart LR
         RAW --> DC{{"Data contracts<br/>Pydantic + frame checks"}}
     end
 
-    subgraph FEATURES["Feature store layer"]
+    subgraph FEATURES["Feature layer"]
         DC --> PIT["Point-in-time features<br/>RFM · trends · consistency<br/>@ monthly snapshots"]
         PIT --> TRAIN[("train.csv<br/>2 older snapshots")]
         PIT --> TEST[("test.csv<br/>newest snapshot<br/>(out-of-time)")]
@@ -63,108 +53,100 @@ flowchart LR
         BAKE -.-> TRK[("experiments/<br/>file-based run tracking")]
     end
 
-    subgraph SERVE["Serving & insight layer"]
+    subgraph SERVE["Serving layer"]
         ART --> SCORER["ChurnScorer<br/>(validated inference API)"]
         TEST --> EVAL["Evaluation & SHAP<br/>10 interactive Plotly reports"]
-        SCORER --> APP["Streamlit dashboard<br/>score · explain · campaign ROI"]
+        SCORER --> APP["Streamlit dashboard"]
         EVAL --> APP
     end
 ```
 
-**Leakage discipline:** every feature is computed strictly from data on or before its snapshot date; the label is a cancellation in the 30 days after. Training uses the two older snapshots, evaluation uses the newest — the model is always tested on a month it has never seen, and all CV/validation splits are **grouped by member_id** so no member appears on both sides of any split.
+Design decisions that carry the system:
 
-## 3. Tech stack
+- **Leakage discipline.** Every feature is computed strictly from data on or before its snapshot date; the label is a cancellation in the following 30 days. Training uses the two older snapshots, evaluation uses the newest — the model is always tested on a month it has never seen. All CV and validation splits are grouped by `member_id`, since the same member appears in several snapshots.
+- **Data contracts at every boundary.** Raw tables are validated on write and on read (Pydantic row contracts plus vectorised frame checks and cross-table referential integrity). Inference payloads are validated against a `ScoringRequest` schema, so a malformed row fails loudly instead of mis-scoring silently.
+- **Probabilities that can feed arithmetic.** Platt calibration is fitted on one grouped half of the validation split and kept only if it improves the Brier score on the other half. The decision threshold then maximises expected campaign profit (save-rate × retained revenue − contact cost), not F1.
+- **Tracked, reproducible training.** Every run writes params, metrics and artifacts under `experiments/runs/` with an append-only JSONL index; the entire pipeline is deterministic under the configured seed.
+- **Honest synthetic data.** Real membership data is proprietary, so a simulator generates production-shaped raw tables. Roughly 80% of churners disengage gradually over 8–14 weeks (the learnable signal); the rest cancel abruptly (relocation, health) and are intentionally near-unpredictable, which keeps the evaluation ceiling realistic. Assumptions are documented in [docs/data_generation.md](docs/data_generation.md).
 
-| Layer | Technology |
+## Stack
+
+| Concern | Choice |
 |---|---|
-| Data contracts | **Pydantic v2** row models + vectorised frame contracts + referential integrity |
-| Features | pandas point-in-time snapshot pipeline (documented feature dictionary) |
-| Models | **LightGBM** vs scikit-learn LogisticRegression bake-off, `RandomizedSearchCV` + `GroupKFold` |
-| Calibration | Platt scaling, kept only when it improves Brier on a held-out half |
-| Experiment tracking | file-based MLflow-style tracker (`experiments/` — params, metrics, artifacts, JSONL index) |
-| Explainability | **SHAP** (global beeswarm + per-member waterfall, one-hot aggregated back to business features) |
-| Visualisation | **Plotly** interactive HTML + PNG snapshots, single validated color system |
-| UI | **Streamlit** scoring dashboard |
-| Quality | **pytest** (57 tests incl. an end-to-end pipeline run), GitHub Actions CI, Dockerfile |
-| Logging | **Loguru** console + structured JSON-lines audit logs |
+| Data contracts | Pydantic v2 row models, vectorised frame contracts, referential integrity |
+| Features | pandas point-in-time snapshot pipeline ([feature dictionary](docs/feature_dictionary.md)) |
+| Models | LightGBM vs LogisticRegression bake-off, RandomizedSearchCV + GroupKFold |
+| Calibration | Platt scaling, retained only on measured Brier improvement |
+| Tracking | file-based run tracker (params/metrics/artifacts + JSONL index) |
+| Explainability | SHAP: global beeswarm, per-member waterfall, one-hot aggregated back to business features |
+| Reports | Plotly interactive HTML + PNG snapshots |
+| Serving | ChurnScorer class + Streamlit operator dashboard |
+| Quality | pytest (57 tests incl. a full pipeline run), GitHub Actions CI, Dockerfile |
+| Logging | Loguru console + structured JSON-lines audit logs |
 
-## 4. Key engineering features
+## Evaluation
 
-- **Fail-fast config** — one `configs/config.yaml`, fully typed and validated by Pydantic; a bad value dies at load time, not after an hour of training.
-- **Data contracts at every boundary** — raw tables are validated on write *and* read; inference payloads are validated against `ScoringRequest` so a malformed row can never silently mis-score.
-- **Honest synthetic data** — the simulator encodes a behavioural story: gradual churners disengage over 8–14 weeks (the learnable signal), while ~20% churn abruptly (relocation/health) and are intentionally near-unpredictable, keeping metrics realistic. Assumptions in [`docs/data_generation.md`](docs/data_generation.md).
-- **Business-first decision threshold** — the operating point maximises expected campaign profit, not F1. The threshold, the calibration decision and the winning model are all recorded in `models/metadata.json`.
-- **Reproducible experiments** — every training run writes params/metrics/artifacts under `experiments/runs/` plus an append-only `index.jsonl`; the whole pipeline is deterministic under `random_seed`.
-
-## 5. Evaluation gallery
-
-All charts are **interactive Plotly HTML** in [`assets/`](assets/) (hover, zoom); PNG snapshots below.
+All charts are interactive Plotly HTML under [`assets/`](assets/); static snapshots below.
 
 | | |
 |:---:|:---:|
-| **Precision–recall tradeoff**<br><img src="assets/img/pr_curve.png" width="100%"> | **Cumulative gains & lift**<br><img src="assets/img/gains_lift.png" width="100%"> |
-| **SHAP beeswarm — what drives churn**<br><img src="assets/img/shap_beeswarm.png" width="100%"> | **Campaign profit vs threshold**<br><img src="assets/img/profit_curve.png" width="100%"> |
-| **Calibration — probabilities you can bank on**<br><img src="assets/img/calibration_curve.png" width="100%"> | **Cohort heatmap — churn by tenure × plan**<br><img src="assets/img/cohort_churn.png" width="100%"> |
+| Precision–recall tradeoff<br><img src="assets/img/pr_curve.png" width="100%"> | Cumulative gains and lift<br><img src="assets/img/gains_lift.png" width="100%"> |
+| SHAP beeswarm — churn drivers<br><img src="assets/img/shap_beeswarm.png" width="100%"> | Campaign profit vs threshold<br><img src="assets/img/profit_curve.png" width="100%"> |
+| Calibration<br><img src="assets/img/calibration_curve.png" width="100%"> | Churn by tenure cohort × plan<br><img src="assets/img/cohort_churn.png" width="100%"> |
 
-<details>
-<summary>Full chart list (10 interactive reports)</summary>
+| Metric (out-of-time test) | Value |
+|---|---|
+| ROC-AUC | 0.882 |
+| PR-AUC | 0.484 (base rate 0.060) |
+| Brier score | 0.0415 |
+| Precision / recall @ profit threshold (0.34) | 0.596 / 0.337 |
+| Precision @ top 10% | 0.376 (6.2x lift) |
+| Recall @ top 10% | 0.624 |
 
-`roc_curve` · `pr_curve` · `calibration_curve` · `confusion_matrix` · `gains_lift` · `profit_curve` · `score_distribution` · `cohort_churn` · `shap_importance` · `shap_beeswarm`
+Model bake-off on validation PR-AUC: LightGBM 0.468 vs LogisticRegression 0.216. Both candidates, their CV scores and the winning hyperparameters are recorded in `models/metadata.json`.
 
-</details>
+## Business impact
 
-## 6. Model performance
+From `assets/business_impact.json` — test-month portfolio of 8,051 active members ($479K monthly recurring revenue; $30.5K/month lost to churn):
 
-Out-of-time test — May 2026 snapshot, 8,231 members the model never saw:
-
-| Metric | Value | Notes |
-|---|---|---|
-| ROC-AUC | **0.882** | |
-| PR-AUC | **0.484** | vs 0.060 base rate → **8.0×** |
-| Brier score | **0.0415** | calibrated probabilities |
-| Precision @ profit threshold | **0.596** | threshold 0.34, chosen for max profit |
-| Recall @ profit threshold | **0.337** | |
-| Precision @ top 10% | **0.376** | **6.2× lift** over random |
-| Recall @ top 10% | **0.624** | top decile captures 62% of churners |
-
-Candidate bake-off (validation PR-AUC): LightGBM **0.468** > LogisticRegression baseline 0.216 — the boosted model earns its complexity.
-
-## 7. Business impact
-
-From `assets/business_impact.json` — test-month portfolio of **8,051 active members** ($479K MRR, $30.5K/month walking out the door):
-
-| Strategy | Members contacted | Churners caught | Expected profit / month |
+| Strategy | Contacted | Churners caught | Expected profit / month |
 |---|---|---|---|
-| **Model, profit-optimal threshold** | 275 (3.4%) | 164 (precision 60%) | **+$7,027** (ROI 1.7×) |
-| **Model, top decile** | 805 (10%) | 303 (recall 62%) | **+$8,118** |
-| Random targeting, same budget | 805 (10%) | ~49 expected | **−$9,038** |
+| Model, profit-optimal threshold | 275 (3.4%) | 164 | +$7,027 (ROI 1.7x) |
+| Model, top decile | 805 (10%) | 303 | +$8,118 |
+| Random targeting, same budget | 805 (10%) | ~49 | −$9,038 |
 
-**Model uplift vs untargeted outreach: ≈ $17,200/month (~$206K annualised)**, assuming a 30% save rate, 3.5 retained months per save and $15 contact cost — all levers configurable in `configs/config.yaml` and stress-testable per gym.
+Assumptions (30% save rate, 3.5 retained months per save, $15 contact cost) are levers in `configs/config.yaml`, so the economics can be re-derived per gym.
 
-## 8. Quickstart
+## Running the project
 
 ```bash
 git clone https://github.com/joaocordova/gym-churn-prediction.git && cd gym-churn-prediction
 pip install -e ".[app,dev]"       # or: pip install -r requirements.txt
 
-python -m gym_churn.cli all       # simulate → features → train → evaluate → explain
+python -m gym_churn.cli all       # simulate -> features -> train -> evaluate -> explain
 pytest                            # 57 tests, includes an end-to-end pipeline run
-streamlit run app.py              # launch the dashboard
+streamlit run app.py
 ```
 
-Stage by stage: `python -m gym_churn.cli simulate|features|train|evaluate|explain` (or `make pipeline`, `make test`, `make app`).
+Individual stages: `python -m gym_churn.cli simulate|features|train|evaluate|explain`. Make targets: `make pipeline`, `make test`, `make app`.
 
-### Docker
+Docker:
 
 ```bash
 docker build -t gym-churn .
-docker run -p 8501:8501 gym-churn   # dashboard at http://localhost:8501
+docker run -p 8501:8501 gym-churn
 ```
 
-## 9. Repository layout
+## Limitations and next steps
+
+- **Drift monitoring is out of scope here.** The schema layer catches structural violations, but distribution drift (e.g., a new membership plan shifting the fee distribution) would currently surface only as degraded metrics at the next retrain. A monitoring job comparing live feature distributions against the training snapshot is the natural next component.
+- **Retraining cadence is manual.** The pipeline is a single deterministic command, so scheduling it is trivial, but champion/challenger promotion logic is not implemented — the newest model always wins.
+- **The save-rate assumption is unvalidated.** The 30% campaign save rate is an industry default; in production it should be estimated from a holdout control group in the first campaign waves, which would also enable uplift modelling instead of pure risk ranking.
+
+## Repository layout
 
 <details>
-<summary>Click to expand</summary>
+<summary>Expand</summary>
 
 ```
 gym-churn-prediction/
@@ -174,32 +156,31 @@ gym-churn-prediction/
 │   ├── config.py               # Pydantic-typed config loader (fail-fast)
 │   ├── schemas.py              # data contracts: row models + frame contracts
 │   ├── simulation.py           # behavioural data simulator
-│   ├── features.py             # point-in-time feature store layer
+│   ├── features.py             # point-in-time feature layer
 │   ├── models.py               # candidates, preprocessing, calibration wrapper
 │   ├── train.py                # grouped CV bake-off + calibration + threshold
-│   ├── evaluate.py             # metrics + 8 interactive evaluation reports
+│   ├── evaluate.py             # metrics + interactive evaluation reports
 │   ├── explain.py              # SHAP global + per-member explanations
-│   ├── business.py             # probabilities → dollars (campaign economics)
+│   ├── business.py             # probabilities -> dollars (campaign economics)
 │   ├── predict.py              # ChurnScorer: validated inference API
 │   ├── tracking.py             # file-based experiment tracker
-│   ├── plotting.py             # one validated visual system for every chart
+│   ├── plotting.py             # shared chart theming
 │   └── cli.py                  # pipeline entry points
 ├── tests/                      # 57 pytest tests (unit + end-to-end)
 ├── docs/                       # feature dictionary, data-generation assumptions
 ├── assets/                     # interactive HTML reports (+ PNG in assets/img)
 ├── models/                     # model.joblib + metadata.json
-├── experiments/                # tracked runs (params/metrics/artifacts)
+├── experiments/                # tracked runs
 ├── Dockerfile · Makefile · .github/workflows/ci.yml
 └── requirements.txt · pyproject.toml
 ```
 
 </details>
 
-## 10. Documentation & sibling project
+## Documentation
 
-- [`docs/feature_dictionary.md`](docs/feature_dictionary.md) — every feature, its window, and the business logic behind it
-- [`docs/data_generation.md`](docs/data_generation.md) — the simulator's generative assumptions and why they matter
-- 🔁 **[gym-winback-prediction](https://github.com/joaocordova/gym-winback-prediction)** — this project predicts who is *about to* leave; the sibling handles the members you already lost, including per-member offer optimization.
+- [docs/feature_dictionary.md](docs/feature_dictionary.md) — every feature, its window, and the business logic behind it
+- [docs/data_generation.md](docs/data_generation.md) — the simulator's generative assumptions and why they matter
 
 ## License
 

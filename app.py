@@ -30,7 +30,7 @@ from gym_churn.features import FEATURE_COLUMNS
 from gym_churn.plotting import SERIES, apply_theme
 from gym_churn.predict import ChurnScorer
 
-st.set_page_config(page_title="Gym Churn Command Center", page_icon="🏋️", layout="wide")
+st.set_page_config(page_title="Gym Churn Command Center", layout="wide")
 
 TIER_COLORS = {"low": SERIES[1], "medium": SERIES[2], "high": SERIES[5]}
 
@@ -88,7 +88,7 @@ def main() -> None:
         )
         st.stop()
 
-    st.title("🏋️ Gym Churn Command Center")
+    st.title("Gym Churn Command Center")
     st.caption(
         f"Model: **{scorer.metadata['model_name']}** · trained "
         f"{scorer.metadata['trained_at'][:10]} · profit-optimal threshold "
@@ -97,7 +97,7 @@ def main() -> None:
     )
 
     tab_score, tab_portfolio, tab_model = st.tabs(
-        ["🎯 Score a member", "📡 Portfolio radar", "📊 Model report"]
+        ["Score a member", "Portfolio radar", "Model report"]
     )
 
     sample = load_sample()
@@ -196,7 +196,7 @@ def main() -> None:
                 probability_gauge(probability, scorer.threshold),
                 use_container_width=True,
             )
-            badge = {"low": "🟢 LOW RISK", "medium": "🟡 MEDIUM RISK", "high": "🔴 HIGH RISK"}[tier]
+            badge = {"low": "LOW RISK", "medium": "MEDIUM RISK", "high": "HIGH RISK"}[tier]
             action = (
                 "**Action:** add to this month's retention campaign — the expected "
                 "value of outreach is positive at this score."
