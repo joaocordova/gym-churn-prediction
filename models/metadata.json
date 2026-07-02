@@ -1,0 +1,61 @@
+{
+  "model_name": "lightgbm",
+  "estimator": "LGBMClassifier",
+  "package_version": "1.0.0",
+  "trained_at": "2026-07-02T00:25:23.372756+00:00",
+  "run_id": "20260702_002433_d17aa1",
+  "decision_threshold": 0.34057143084242786,
+  "calibrated": true,
+  "best_params": {
+    "colsample_bytree": 0.6783931449676581,
+    "learning_rate": 0.011302939920362371,
+    "min_child_samples": 59,
+    "n_estimators": 362,
+    "num_leaves": 30,
+    "reg_lambda": 0.9756194291174574,
+    "subsample": 0.8619076397167239
+  },
+  "feature_columns": [
+    "tenure_days",
+    "recency_days",
+    "visits_7d",
+    "visits_30d",
+    "visits_90d",
+    "visits_per_week_90d",
+    "visit_trend_30d",
+    "active_weeks_ratio_12w",
+    "weekly_visits_std_12w",
+    "class_ratio_90d",
+    "peak_hour_ratio_90d",
+    "payment_failures_90d",
+    "late_payments_90d",
+    "monthly_fee",
+    "age",
+    "plan_type",
+    "gender",
+    "referral_source"
+  ],
+  "validation_metrics": {
+    "roc_auc": 0.8551256495638848,
+    "pr_auc": 0.4683122639725967,
+    "brier": 0.051620195146642456,
+    "log_loss": 0.19014477200547614,
+    "f1": 0.48484848484848486,
+    "precision": 0.6,
+    "recall": 0.4067796610169492,
+    "precision_at_10pct": 0.3860759493670886,
+    "lift_at_10pct": 5.198937996138167,
+    "base_churn_rate": 0.07426054122089365,
+    "threshold": 0.34057143084242786
+  },
+  "candidates": {
+    "logistic": {
+      "cv_pr_auc": 0.4244581282200275,
+      "val_pr_auc": 0.41988955195618877
+    },
+    "lightgbm": {
+      "cv_pr_auc": 0.4444750021243042,
+      "val_pr_auc": 0.48272809777998393
+    }
+  }
+}

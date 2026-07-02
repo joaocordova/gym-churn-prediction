@@ -1,0 +1,55 @@
+# =============================================================================
+# gym-churn-prediction — central configuration
+# Every tunable of the system lives here. Loaded and validated by
+# `gym_churn.config.load_config()` (Pydantic-typed, fail-fast on bad values).
+# =============================================================================
+
+project:
+  name: gym-churn-prediction
+  random_seed: 42
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  sample_dir: data/sample
+  models_dir: models
+  assets_dir: assets
+  img_dir: assets/img
+  experiments_dir: experiments
+  logs_dir: logs
+
+# Synthetic data simulator (mirrors the production schema of a multi-location
+# gym chain; see docs/data_generation.md for the generative assumptions).
+simulation:
+  n_members: 12000
+  window_start: "2025-10-01"
+  window_end: "2026-06-30"
+
+# Point-in-time snapshot design: features are computed strictly from data on
+# or before each snapshot date; the label is a cancellation within the
+# following `label_horizon_days`. The most recent snapshot is held out as the
+# temporal test set (train on the past, test on the future — no leakage).
+snapshots:
+  dates: ["2026-03-31", "2026-04-30", "2026-05-31"]
+  test_snapshot: "2026-05-31"
+  label_horizon_days: 30
+  min_tenure_days: 30
+
+training:
+  cv_folds: 3
+  n_search_iter: 20
+  scoring: average_precision   # PR-AUC — the right objective for imbalanced churn
+  validation_fraction: 0.20    # grouped by member_id to prevent identity leakage
+  calibration: auto            # auto = keep Platt scaling only if it improves Brier
+
+# Financial assumptions used to convert probabilities into money.
+# Sources: average of the simulated plan mix; campaign figures are
+# conservative industry defaults and are meant to be overridden per gym.
+business:
+  currency: USD
+  currency_symbol: "$"
+  avg_monthly_fee: 62.0        # fallback when a member-level fee is unavailable
+  contact_cost: 15.0           # cost of one retention outreach (staff time + incentive)
+  save_rate: 0.30              # share of correctly-flagged churners a campaign retains
+  retention_months: 3.5        # extra paid months gained per saved member
+  top_fraction: 0.10           # default outreach capacity (top-decile targeting)

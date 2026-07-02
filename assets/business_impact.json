@@ -1,0 +1,48 @@
+{
+  "snapshot": "2026-05-31",
+  "currency": "USD",
+  "portfolio": {
+    "active_members": 8051,
+    "monthly_recurring_revenue": 479285.4,
+    "observed_churn_rate_30d": 0.0604,
+    "monthly_revenue_lost_to_churn": 30508.18
+  },
+  "campaign_at_optimal_threshold": {
+    "threshold": 0.34057143084242786,
+    "n_scored": 8051,
+    "n_flagged": 275,
+    "flagged_fraction": 0.0342,
+    "true_churners_flagged": 164,
+    "precision": 0.5964,
+    "recall": 0.3374,
+    "expected_saves": 49.2,
+    "retained_revenue": 11151.56,
+    "campaign_cost": 4125.0,
+    "expected_profit": 7026.56,
+    "roi": 1.7
+  },
+  "campaign_top_decile": {
+    "threshold": 0.12275469112275628,
+    "n_scored": 8051,
+    "n_flagged": 805,
+    "flagged_fraction": 0.1,
+    "true_churners_flagged": 303,
+    "precision": 0.3764,
+    "recall": 0.6235,
+    "expected_saves": 90.9,
+    "retained_revenue": 20192.91,
+    "campaign_cost": 12075.0,
+    "expected_profit": 8117.91,
+    "roi": 0.67
+  },
+  "random_targeting_baseline": {
+    "n_flagged": 805,
+    "expected_profit": -9037.5
+  },
+  "model_uplift_vs_random": 17155.41,
+  "assumptions": {
+    "save_rate": 0.3,
+    "retention_months": 3.5,
+    "contact_cost": 15.0
+  }
+}

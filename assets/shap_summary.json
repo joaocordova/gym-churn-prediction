@@ -1,0 +1,24 @@
+{
+  "base_value_logodds": -3.820476694112388,
+  "n_rows_explained": 2500,
+  "mean_abs_shap": {
+    "visits_30d": 0.73625,
+    "plan_type": 0.34028,
+    "recency_days": 0.17364,
+    "visits_7d": 0.16894,
+    "monthly_fee": 0.12537,
+    "weekly_visits_std_12w": 0.1183,
+    "visits_90d": 0.09115,
+    "peak_hour_ratio_90d": 0.067,
+    "age": 0.06353,
+    "visit_trend_30d": 0.05361,
+    "class_ratio_90d": 0.05299,
+    "tenure_days": 0.04634,
+    "active_weeks_ratio_12w": 0.03431,
+    "payment_failures_90d": 0.02859,
+    "gender": 0.02634,
+    "referral_source": 0.01943,
+    "visits_per_week_90d": 0.01803,
+    "late_payments_90d": 0.01107
+  }
+}
