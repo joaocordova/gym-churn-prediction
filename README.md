@@ -1,15 +1,36 @@
-# 🏋️ gym-churn-prediction
+<div align="center">
 
-**Production-grade churn prediction for gym memberships** — an end-to-end ML system that turns raw check-in, billing and membership data into a calibrated 30-day churn probability, a SHAP explanation of *why*, and a profit-optimal retention campaign.
+<img src="assets/img/banner.png" alt="Gym Churn Prediction — end-to-end ML system" width="100%">
 
-![Python](https://img.shields.io/badge/python-3.11-blue)
-![LightGBM](https://img.shields.io/badge/model-LightGBM-green)
-![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen)
+[![CI](https://github.com/joaocordova/gym-churn-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/joaocordova/gym-churn-prediction/actions/workflows/ci.yml)
+![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
+![LightGBM](https://img.shields.io/badge/LightGBM-calibrated-2a78d6)
+![SHAP](https://img.shields.io/badge/SHAP-explainable-e34948)
+![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **Headline result (out-of-time test):** ROC-AUC **0.882** · PR-AUC **0.484** (8× the 6% base rate) · **6.2× lift** in the top decile. Contacting the top 10% riskiest members captures **62% of next-month churners** and is worth **≈ $17,200/month more profit than untargeted outreach** on a 8,000-member portfolio.
+**[📸 Dashboard](#-the-dashboard) · [🏗 Architecture](#2-system-architecture) · [📊 Performance](#6-model-performance) · [💰 Business impact](#7-business-impact) · [🚀 Quickstart](#8-quickstart)**
+
+</div>
 
 ---
+
+> **TL;DR (out-of-time test):** ROC-AUC **0.882** · PR-AUC **0.484** (8× the 6% base rate) · **6.2× lift** in the top decile. Contacting the top 10% riskiest members captures **62% of next-month churners** — worth **≈ $17,200/month (~$206K/yr) more profit than untargeted outreach** on an 8,000-member portfolio.
+
+## 📸 The dashboard
+
+Real-time scoring with a per-member SHAP explanation — enter a member's behaviour, get the calibrated risk, the *why*, and the outreach decision:
+
+<img src="assets/img/app_score.png" alt="Score a member — churn gauge, risk tier and SHAP explanation" width="100%">
+
+Portfolio view — risk-tier mix, ranked outreach list and expected campaign profit:
+
+<img src="assets/img/app_portfolio.png" alt="Portfolio radar — risk tiers and ranked outreach list" width="100%">
+
+```bash
+streamlit run app.py   # → http://localhost:8501
+```
 
 ## 1. Business problem
 
@@ -69,27 +90,32 @@ flowchart LR
 
 ## 4. Key engineering features
 
-- **Fail-fast config** — one `configs/config.yaml`, fully typed and validated by Pydantic (`gym_churn/config.py`); a bad value dies at load time, not after an hour of training.
+- **Fail-fast config** — one `configs/config.yaml`, fully typed and validated by Pydantic; a bad value dies at load time, not after an hour of training.
 - **Data contracts at every boundary** — raw tables are validated on write *and* read; inference payloads are validated against `ScoringRequest` so a malformed row can never silently mis-score.
-- **Honest synthetic data** — the simulator (`gym_churn/simulation.py`) encodes a behavioural story: gradual churners disengage over 8–14 weeks (the learnable signal), while ~20% churn abruptly (relocation/health) and are intentionally near-unpredictable, keeping metrics realistic. Assumptions are documented in [`docs/data_generation.md`](docs/data_generation.md).
+- **Honest synthetic data** — the simulator encodes a behavioural story: gradual churners disengage over 8–14 weeks (the learnable signal), while ~20% churn abruptly (relocation/health) and are intentionally near-unpredictable, keeping metrics realistic. Assumptions in [`docs/data_generation.md`](docs/data_generation.md).
 - **Business-first decision threshold** — the operating point maximises expected campaign profit, not F1. The threshold, the calibration decision and the winning model are all recorded in `models/metadata.json`.
 - **Reproducible experiments** — every training run writes params/metrics/artifacts under `experiments/runs/` plus an append-only `index.jsonl`; the whole pipeline is deterministic under `random_seed`.
 
-## 5. Interactive dashboard
+## 5. Evaluation gallery
 
-```bash
-streamlit run app.py
-```
+All charts are **interactive Plotly HTML** in [`assets/`](assets/) (hover, zoom); PNG snapshots below.
 
-Three views:
+| | |
+|:---:|:---:|
+| **Precision–recall tradeoff**<br><img src="assets/img/pr_curve.png" width="100%"> | **Cumulative gains & lift**<br><img src="assets/img/gains_lift.png" width="100%"> |
+| **SHAP beeswarm — what drives churn**<br><img src="assets/img/shap_beeswarm.png" width="100%"> | **Campaign profit vs threshold**<br><img src="assets/img/profit_curve.png" width="100%"> |
+| **Calibration — probabilities you can bank on**<br><img src="assets/img/calibration_curve.png" width="100%"> | **Cohort heatmap — churn by tenure × plan**<br><img src="assets/img/cohort_churn.png" width="100%"> |
 
-| Tab | What it does |
-|---|---|
-| 🎯 **Score a member** | Enter (or preset-load) a member profile → calibrated churn gauge, risk tier, outreach recommendation, and a **SHAP waterfall explaining that exact member** |
-| 📡 **Portfolio radar** | Scored portfolio: risk-tier mix, ranked outreach list, expected campaign profit |
-| 📊 **Model report** | Headline metrics + all ten interactive evaluation plots, embedded |
+<details>
+<summary>Full chart list (10 interactive reports)</summary>
 
-## 6. Model performance (out-of-time test — May 2026 snapshot, 8,231 members)
+`roc_curve` · `pr_curve` · `calibration_curve` · `confusion_matrix` · `gains_lift` · `profit_curve` · `score_distribution` · `cohort_churn` · `shap_importance` · `shap_beeswarm`
+
+</details>
+
+## 6. Model performance
+
+Out-of-time test — May 2026 snapshot, 8,231 members the model never saw:
 
 | Metric | Value | Notes |
 |---|---|---|
@@ -103,20 +129,9 @@ Three views:
 
 Candidate bake-off (validation PR-AUC): LightGBM **0.468** > LogisticRegression baseline 0.216 — the boosted model earns its complexity.
 
-<p align="center">
-  <img src="assets/img/pr_curve.png" width="49%" alt="Precision-recall curve">
-  <img src="assets/img/gains_lift.png" width="49%" alt="Cumulative gains">
-</p>
-<p align="center">
-  <img src="assets/img/shap_beeswarm.png" width="49%" alt="SHAP beeswarm">
-  <img src="assets/img/profit_curve.png" width="49%" alt="Profit curve">
-</p>
+## 7. Business impact
 
-Interactive versions of all charts (hover, zoom) live in [`assets/`](assets/) — `roc_curve`, `pr_curve`, `calibration_curve`, `confusion_matrix`, `gains_lift`, `profit_curve`, `score_distribution`, `cohort_churn`, `shap_importance`, `shap_beeswarm`.
-
-## 7. Business impact (from `assets/business_impact.json`)
-
-On the test-month portfolio of **8,051 active members** ($479K monthly recurring revenue, $30.5K/month walking out the door):
+From `assets/business_impact.json` — test-month portfolio of **8,051 active members** ($479K MRR, $30.5K/month walking out the door):
 
 | Strategy | Members contacted | Churners caught | Expected profit / month |
 |---|---|---|---|
@@ -129,7 +144,7 @@ On the test-month portfolio of **8,051 active members** ($479K monthly recurring
 ## 8. Quickstart
 
 ```bash
-git clone <repo-url> && cd gym-churn-prediction
+git clone https://github.com/joaocordova/gym-churn-prediction.git && cd gym-churn-prediction
 pip install -e ".[app,dev]"       # or: pip install -r requirements.txt
 
 python -m gym_churn.cli all       # simulate → features → train → evaluate → explain
@@ -147,6 +162,9 @@ docker run -p 8501:8501 gym-churn   # dashboard at http://localhost:8501
 ```
 
 ## 9. Repository layout
+
+<details>
+<summary>Click to expand</summary>
 
 ```
 gym-churn-prediction/
@@ -175,11 +193,13 @@ gym-churn-prediction/
 └── requirements.txt · pyproject.toml
 ```
 
-## 10. Documentation
+</details>
+
+## 10. Documentation & sibling project
 
 - [`docs/feature_dictionary.md`](docs/feature_dictionary.md) — every feature, its window, and the business logic behind it
 - [`docs/data_generation.md`](docs/data_generation.md) — the simulator's generative assumptions and why they matter
-- Sibling project: [`gym-winback-prediction`](../gym-winback-prediction) — after a member cancels, who can be won back?
+- 🔁 **[gym-winback-prediction](https://github.com/joaocordova/gym-winback-prediction)** — this project predicts who is *about to* leave; the sibling handles the members you already lost, including per-member offer optimization.
 
 ## License
 
